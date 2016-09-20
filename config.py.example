@@ -13,3 +13,4 @@ NSUPDATE_KEY = os.path.join(basedir, 'ns.key')
 NSUPDATE_DOMAIN = 'domain.de'
 NSUPDATE_SERVER = 'ns.domain.de'
 NSUPDATE_TTL = 60
+NSUPDATE_CMD = '/usr/bin/nsupdate'
