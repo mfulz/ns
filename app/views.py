@@ -71,3 +71,32 @@ def register_domain():
 
     return "Success"
 
+@app.route("/unregister_domain", methods=['POST'])
+def unregister_domain():
+    _username = request.form['username']
+    _password = request.form['password']
+    _domain = request.form['domain']
+
+    res = login(_username, _password)
+    if res != 200:
+        abort(res)
+
+    if not validate_domain(_domain):
+        abort(500)
+
+    user = User.query.filter_by(username=_username).first()
+    if user == None:
+        abort(500)
+
+    domain = Domain.query.filter_by(domain=_domain,user_id=user.id).first()
+    if domain == None:
+        abort(500)
+
+    try:
+        db.session.delete(domain)
+        db.session.commit()
+    except exc.SQLAlchemyError, e:
+        abort(500)
+
+    return "Success"
+
