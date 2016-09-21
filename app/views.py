@@ -6,9 +6,11 @@ from app.validators import validate_ip, validate_domain
 from flask import request, abort
 from sqlalchemy import exc
 
+
 @app.route("/ip")
 def ip():
     return request.environ['REMOTE_ADDR']
+
 
 @app.route("/update", methods=['POST'])
 def update():
@@ -19,25 +21,27 @@ def update():
 
     res = login(_username, _password)
     if res != 200:
-        abort(res)
+        return "Login failed"
 
     if not validate_domain(_domain):
-        abort(500)
+        return "Invalid domain '{0}'".format(_domain)
     if not validate_ip(_ip):
-        abort(500)
+        return "Invalid IP '{0}'".format(_ip)
 
     user = User.query.filter_by(username=_username).first()
-    if user == None:
-        abort(500)
+    if user is None:
+        return "Domain not registered '{0}'".format(_domain)
 
-    domain = Domain.query.filter_by(domain=_domain,user_id=user.id).first()
-    if domain == None:
-        abort(500)
+    domain = Domain.query.filter_by(domain=_domain, user_id=user.id).first()
+    if domain is None:
+        return "Domain not registered '{0}'".format(_domain)
 
     if nsupdate(_ip, _domain) is not 0:
-        abort(500)
+        return "Something went wrong during update of '{0}' with IP '{1}'".format(
+            _domain, _ip)
 
     return "Success"
+
 
 @app.route("/register_domain", methods=['POST'])
 def register_domain():
@@ -47,29 +51,31 @@ def register_domain():
 
     res = login(_username, _password)
     if res != 200:
-        abort(res)
+        return "Login failed"
 
     if not validate_domain(_domain):
-        abort(500)
+        return "Invalid domain '{0}'".format(_domain)
 
     user = User.query.filter_by(username=_username).first()
-    if user == None:
+    if user is None:
         user = User(username=_username)
         try:
             db.session.add(user)
             db.session.commit()
-        except exc.SQLAlchemyError, e:
-            abort(500)
+        except exc.SQLAlchemyError as e:
+            return "Something went wrong during registration of domain '{0}'".format(
+                _domain)
 
-    domain = Domain(domain=_domain,user_id=user.id)
-
+    domain = Domain(domain=_domain, user_id=user.id)
     try:
         db.session.add(domain)
         db.session.commit()
-    except exc.SQLAlchemyError, e:
-        abort(500)
+    except exc.SQLAlchemyError as e:
+        return "Something went wrong during registration of domain '{0}'".format(
+            _domain)
 
     return "Success"
+
 
 @app.route("/unregister_domain", methods=['POST'])
 def unregister_domain():
@@ -79,24 +85,24 @@ def unregister_domain():
 
     res = login(_username, _password)
     if res != 200:
-        abort(res)
+        return "Login failed"
 
     if not validate_domain(_domain):
         abort(500)
 
     user = User.query.filter_by(username=_username).first()
-    if user == None:
-        abort(500)
+    if user is None:
+        return "User '{0}' doesn't have any domains".format(_username)
 
-    domain = Domain.query.filter_by(domain=_domain,user_id=user.id).first()
-    if domain == None:
-        abort(500)
+    domain = Domain.query.filter_by(domain=_domain, user_id=user.id).first()
+    if domain is None:
+        return "Domain '{0}' doesn't exist".format(_domain)
 
     try:
         db.session.delete(domain)
         db.session.commit()
-    except exc.SQLAlchemyError, e:
-        abort(500)
+    except exc.SQLAlchemyError as e:
+        return "Something went wrong during unregistration of domain '{0}'".format(
+            _domain)
 
     return "Success"
-
