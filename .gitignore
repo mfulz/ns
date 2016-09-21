@@ -1,0 +1,5 @@
+flask/
+*.pyc
+config.py
+migrations
+app.db
