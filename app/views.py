@@ -1,108 +1,43 @@
 from app import app, db
 from app.models import User, Domain
-from app.login import login
-from app.nsupdate import nsupdate
-from app.validators import validate_ip, validate_domain
-from flask import request, abort
-from sqlalchemy import exc
+from flask import request, abort, render_template, redirect
+from flask_login import login_user, logout_user, login_required
+from .forms.login import LoginForm
+from .login.user import load_user
 
 
-@app.route("/ip")
-def ip():
-    return request.environ['REMOTE_ADDR']
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user:
+            # login needed
+            print "OK"
+            login_user(user)
+            return redirect('/get_user?username={0}'.format(user.username))
+        else:
+            abort(401)
+    return render_template('login.html',
+                            title='Sign In',
+                            form=form)
 
-
-@app.route("/update", methods=['POST'])
-def update():
-    _username = request.form['username']
-    _password = request.form['password']
-    _domain = request.form['domain']
-    _ip = request.form['ip']
-
-    res = login(_username, _password)
-    if res != 200:
-        return "Login failed"
-
-    if not validate_domain(_domain):
-        return "Invalid domain '{0}'".format(_domain)
-    if not validate_ip(_ip):
-        return "Invalid IP '{0}'".format(_ip)
-
-    user = User.query.filter_by(username=_username).first()
-    if user is None:
-        return "Domain not registered '{0}'".format(_domain)
-
-    domain = Domain.query.filter_by(domain=_domain, user_id=user.id).first()
-    if domain is None:
-        return "Domain not registered '{0}'".format(_domain)
-
-    if nsupdate(_ip, _domain) is not 0:
-        return "Something went wrong during update of '{0}' with IP '{1}'".format(
-            _domain, _ip)
-
-    return "Success"
-
-
-@app.route("/register_domain", methods=['POST'])
-def register_domain():
-    _username = request.form['username']
-    _password = request.form['password']
-    _domain = request.form['domain']
-
-    res = login(_username, _password)
-    if res != 200:
-        return "Login failed"
-
-    if not validate_domain(_domain):
-        return "Invalid domain '{0}'".format(_domain)
-
-    user = User.query.filter_by(username=_username).first()
-    if user is None:
-        user = User(username=_username)
-        try:
-            db.session.add(user)
-            db.session.commit()
-        except exc.SQLAlchemyError as e:
-            return "Something went wrong during registration of domain '{0}'".format(
-                _domain)
-
-    domain = Domain(domain=_domain, user_id=user.id)
-    try:
-        db.session.add(domain)
-        db.session.commit()
-    except exc.SQLAlchemyError as e:
-        return "Something went wrong during registration of domain '{0}'".format(
-            _domain)
-
-    return "Success"
-
-
-@app.route("/unregister_domain", methods=['POST'])
-def unregister_domain():
-    _username = request.form['username']
-    _password = request.form['password']
-    _domain = request.form['domain']
-
-    res = login(_username, _password)
-    if res != 200:
-        return "Login failed"
-
-    if not validate_domain(_domain):
-        abort(500)
-
-    user = User.query.filter_by(username=_username).first()
-    if user is None:
-        return "User '{0}' doesn't have any domains".format(_username)
-
-    domain = Domain.query.filter_by(domain=_domain, user_id=user.id).first()
-    if domain is None:
-        return "Domain '{0}' doesn't exist".format(_domain)
-
-    try:
-        db.session.delete(domain)
-        db.session.commit()
-    except exc.SQLAlchemyError as e:
-        return "Something went wrong during unregistration of domain '{0}'".format(
-            _domain)
-
-    return "Success"
+@app.route('/add_user', methods=['GET'])
+@login_required
+def add_user():
+    user = User(username=request.args.get("username"))
+    db.session.add(user)
+    db.session.commit()
+    return "OK"
+    
+@app.route('/get_user', methods=['GET'])
+@login_required
+def get_user():
+    user = User.query.filter_by(username=request.args.get("username")).first()
+    return str(user.id)
+    
+@app.route('/logout', methods=['GET'])
+@login_required
+def logout():
+    logout_user()
+    return redirect('/login')
